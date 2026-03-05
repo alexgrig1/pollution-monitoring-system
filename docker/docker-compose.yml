@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: ../app
+    container_name: pollution-app
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DROOLS_BASE_URL=http://jbpm:8080
+    depends_on:
+      - jbpm
+
+  jbpm:
+    image: jboss/jbpm-server-full:latest
+    container_name: jbpm-server-full
+    ports:
+      - "8080:8080"
+      - "8001:8001"
+    volumes:
+      - ../runtime/niogit:/opt/jboss/wildfly/bin/.niogit

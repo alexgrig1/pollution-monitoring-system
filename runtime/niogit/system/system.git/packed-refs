@@ -1,0 +1,4 @@
+# pack-refs with: peeled
+8c586ca7515c955af7d67af65fe0cc7d1856d0db refs/heads/master
+3837ccd43d012303b130fbd3abd490114ca285aa refs/heads/servers
+e962fe94c7914bcba052e2554df15168739762c2 refs/heads/social
