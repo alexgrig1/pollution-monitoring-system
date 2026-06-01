@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pollution Demo</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      padding: 24px;
+    }
+
+    button {
+      padding: 10px 14px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    input {
+      padding: 8px;
+      font-size: 14px;
+      width: 140px;
+    }
+
+    label {
+      font-size: 14px;
+    }
+
+    pre {
+      margin-top: 16px;
+      padding: 12px;
+      background: #f6f6f6;
+      border-radius: 8px;
+      overflow: auto;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f3f4f6;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .status-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 15px;
+      font-weight: bold;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .status-green {
+      background: #22c55e;
+    }
+
+    .status-red {
+      background: #ef4444;
+    }
+
+    .section {
+      margin-top: 28px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Pollution Monitoring Demo</h1>
+
+  <div class="status-container">
+    <span>Status:</span>
+    <span id="kieIndicator" class="status-dot status-red"></span>
+    <span id="kieText">Disconnected</span>
+  </div>
+
+  <div class="row">
+    <button id="deployBtn" style="display:none;">Deploy KIE Container</button>
+  </div>
+  <a href="/dashboard.html" target="_blank">
+    <button>Open Dashboards</button>
+  </a>
+  <a href="/ai-rules.html" target="_blank">
+    <button>AI Rule Generator</button>
+  </a>
+  <div class="row">
+    <label>sensorId <input id="sensorId" value="S1"></label>
+    <label>locationId <input id="locationId" value="room1"></label>
+    <label>pm1 <input id="pm1" type="number" value="10"></label>
+    <label>pm25 <input id="pm25" type="number" value="70"></label>
+    <label>pm10 <input id="pm10" type="number" value="90"></label>
+    <label>temperature <input id="temperature" type="number" value="24"></label>
+    <label>humidity <input id="humidity" type="number" value="45"></label>
+  </div>
+
+  <div class="row">
+    <button id="sendBtn">Send Reading</button>
+    <button id="refreshBtn">Refresh Data</button>
+  </div>
+
+  <pre id="out">(Response will appear here. Also check browser DevTools Console.)</pre>
+
+  <div class="section">
+    <h2>Latest Readings</h2>
+    <div id="readingsContainer">Loading readings...</div>
+  </div>
+
+  <div class="section">
+    <h2>Latest Alerts</h2>
+    <div id="alertsContainer">Loading alerts...</div>
+  </div>
+
+  <div class="section">
+    <h2>Aggregates</h2>
+
+    <div class="row">
+      <button id="calculateAggregatesBtn">Calculate Aggregates</button>
+      <button id="loadAggregatesBtn">Load Aggregates</button>
+      <button id="runAggregateRulesBtn">Run Aggregate Rules</button>
+    </div>
+
+    <h3>Hourly Aggregates</h3>
+    <div id="hourlyAggregatesContainer">No hourly aggregates loaded</div>
+
+    <h3>Daily Aggregates</h3>
+    <div id="dailyAggregatesContainer">No daily aggregates loaded</div>
+
+    <h3>Shift Aggregates</h3>
+    <div id="shiftAggregatesContainer">No shift aggregates loaded</div>
+  </div>
+
+  <script>
+    const out = document.getElementById('out');
+    const deployBtn = document.getElementById('deployBtn');
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function formatTs(ts) {
+      if (!ts) return '';
+      const date = new Date(Number(ts));
+      if (Number.isNaN(date.getTime())) return escapeHtml(ts);
+      return date.toLocaleString();
+    }
+
+    async function checkStatus() {
+      try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+
+        const dot = document.getElementById('kieIndicator');
+        const text = document.getElementById('kieText');
+
+        if (data.kie === 'UP') {
+          dot.classList.remove('status-red');
+          dot.classList.add('status-green');
+          text.textContent = 'Connected';
+          deployBtn.style.display = 'inline-block';
+        } else {
+          dot.classList.remove('status-green');
+          dot.classList.add('status-red');
+          text.textContent = 'Disconnected';
+          deployBtn.style.display = 'none';
+        }
+      } catch (err) {
+        document.getElementById('kieIndicator').classList.remove('status-green');
+        document.getElementById('kieIndicator').classList.add('status-red');
+        document.getElementById('kieText').textContent = 'Disconnected';
+        deployBtn.style.display = 'none';
+      }
+    }
+
+    async function loadReadings() {
+      const container = document.getElementById('readingsContainer');
+
+      try {
+        const response = await fetch('/api/readings?limit=20');
+        const data = await response.json();
+
+        if (!data.ok || !data.readings?.length) {
+          container.innerHTML = '<p>No readings found</p>';
+          return;
+        }
+
+        container.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th><th>Time</th><th>Sensor</th><th>Location</th>
+                <th>PM1</th><th>PM2.5</th><th>PM10</th>
+                <th>Temp</th><th>Humidity</th><th>Shift</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.readings.map(r => `
+                <tr>
+                  <td>${escapeHtml(r.id)}</td>
+                  <td>${formatTs(r.ts)}</td>
+                  <td>${escapeHtml(r.sensor_id)}</td>
+                  <td>${escapeHtml(r.location_id)}</td>
+                  <td>${escapeHtml(r.pm1)}</td>
+                  <td>${escapeHtml(r.pm25)}</td>
+                  <td>${escapeHtml(r.pm10)}</td>
+                  <td>${escapeHtml(r.temperature)}</td>
+                  <td>${escapeHtml(r.humidity)}</td>
+                  <td>${escapeHtml(r.shift)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } catch (e) {
+        container.innerHTML = `<p>Error: ${escapeHtml(e)}</p>`;
+      }
+    }
+
+    async function loadAlerts() {
+      const container = document.getElementById('alertsContainer');
+
+      try {
+        const response = await fetch('/api/alerts?limit=20');
+        const data = await response.json();
+
+        if (!data.ok || !data.alerts?.length) {
+          container.innerHTML = '<p>No alerts found</p>';
+          return;
+        }
+
+        container.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th><th>Time</th><th>Location</th>
+                <th>Type</th><th>Severity</th><th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.alerts.map(a => `
+                <tr>
+                  <td>${escapeHtml(a.id)}</td>
+                  <td>${formatTs(a.ts)}</td>
+                  <td>${escapeHtml(a.location_id)}</td>
+                  <td>${escapeHtml(a.type)}</td>
+                  <td>${escapeHtml(a.severity)}</td>
+                  <td>${escapeHtml(a.message)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } catch (e) {
+        container.innerHTML = `<p>Error: ${escapeHtml(e)}</p>`;
+      }
+    }
+
+    async function refreshData() {
+      await loadReadings();
+      await loadAlerts();
+    }
+
+    async function calculateAggregates() {
+      out.textContent = 'Calculating aggregates...';
+
+      try {
+        const response = await fetch('/api/aggregates/calculate', { method: 'POST' });
+        const text = await response.text();
+
+        out.textContent = 'HTTP ' + response.status + '\n\n' + text;
+
+        await loadAggregates();
+      } catch (e) {
+        out.textContent = 'Aggregate error: ' + e;
+      }
+    }
+
+    async function loadAggregates() {
+      await loadAggregateTable('/api/aggregates/hourly?limit=30', 'hourlyAggregatesContainer', 'hourly');
+      await loadAggregateTable('/api/aggregates/daily?limit=30', 'dailyAggregatesContainer', 'daily');
+      await loadAggregateTable('/api/aggregates/shift?limit=30', 'shiftAggregatesContainer', 'shift');
+    }
+
+    async function loadAggregateTable(url, containerId, type) {
+      const container = document.getElementById(containerId);
+
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (!data.ok || !data.aggregates?.length) {
+          container.innerHTML = '<p>No aggregates found</p>';
+          return;
+        }
+
+        container.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th><th>Location</th><th>Pollutant</th>
+                <th>${type === 'hourly' ? 'Hour' : type === 'shift' ? 'Shift' : 'Day'}</th>
+                <th>Day</th><th>Month</th>
+                <th>Avg</th><th>Min</th><th>Max</th><th>Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.aggregates.map(a => `
+                <tr>
+                  <td>${escapeHtml(a.id)}</td>
+                  <td>${escapeHtml(a.location_id)}</td>
+                  <td>${escapeHtml(a.pollutant)}</td>
+                  <td>${escapeHtml(type === 'hourly' ? a.hour_of_day : type === 'shift' ? a.shift : a.day_of_week)}</td>
+                  <td>${escapeHtml(a.day_of_week)}</td>
+                  <td>${escapeHtml(a.month_of_year)}</td>
+                  <td>${Number(a.avg_value ?? 0).toFixed(2)}</td>
+                  <td>${Number(a.min_value ?? 0).toFixed(2)}</td>
+                  <td>${Number(a.max_value ?? 0).toFixed(2)}</td>
+                  <td>${escapeHtml(a.count_used)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } catch (e) {
+        container.innerHTML = `<p>Error: ${escapeHtml(e)}</p>`;
+      }
+    }
+
+    async function runAggregateRules() {
+      out.textContent = 'Running aggregate rules...';
+
+      try {
+        const response = await fetch('/api/aggregates/run-rules?limit=100', {
+          method: 'POST'
+        });
+
+        const text = await response.text();
+        out.textContent = 'HTTP ' + response.status + '\n\n' + text;
+
+        await refreshData();
+        await loadAggregates();
+      } catch (e) {
+        out.textContent = 'Aggregate rules error: ' + e;
+      }
+    }
+
+    document.getElementById('sendBtn').addEventListener('click', async () => {
+      const payload = {
+        sensorId: document.getElementById('sensorId').value,
+        locationId: document.getElementById('locationId').value,
+        pm1: Number(document.getElementById('pm1').value),
+        pm25: Number(document.getElementById('pm25').value),
+        pm10: Number(document.getElementById('pm10').value),
+        temperature: Number(document.getElementById('temperature').value),
+        humidity: Number(document.getElementById('humidity').value),
+      };
+
+      out.textContent = 'Sending reading...';
+
+      try {
+        const response = await fetch('/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const text = await response.text();
+        out.textContent = 'HTTP ' + response.status + '\n\n' + text;
+
+        await refreshData();
+      } catch (e) {
+        out.textContent = 'Error: ' + e;
+      }
+    });
+
+    deployBtn.addEventListener('click', async () => {
+      out.textContent = 'Deploying KIE container...';
+
+      try {
+        const response = await fetch('/api/kie/deploy', { method: 'POST' });
+        const text = await response.text();
+
+        out.textContent = 'HTTP ' + response.status + '\n\n' + text;
+
+        await checkStatus();
+      } catch (e) {
+        out.textContent = 'Deploy error: ' + e;
+      }
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', refreshData);
+    document.getElementById('calculateAggregatesBtn').addEventListener('click', calculateAggregates);
+    document.getElementById('loadAggregatesBtn').addEventListener('click', loadAggregates);
+    document.getElementById('runAggregateRulesBtn').addEventListener('click', runAggregateRules);
+
+    checkStatus();
+    refreshData();
+    loadAggregates();
+
+    setInterval(checkStatus, 5000);
+  </script>
+</body>
+
+</html>

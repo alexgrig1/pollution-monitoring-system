@@ -1,11 +1,20 @@
-FROM node:20-alpine
+FROM node:20-bookworm
 
 WORKDIR /usr/src/app
 
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    sqlite3 \
+  && rm -rf /var/lib/apt/lists/*
 
-COPY src ./src
+COPY package*.json ./
+
+RUN npm install --build-from-source
+
+COPY . .
 
 EXPOSE 3000
+
 CMD ["npm", "start"]
