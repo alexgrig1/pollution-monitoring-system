@@ -1,0 +1,21 @@
+{
+  "facts": [
+    {
+      "className": "com.myspace.pollution.pollution_rules.SensorReading",
+      "fields": {
+        "sensorId": "GIT_SENSOR_CO3",
+        "locationId": "GIT_LOCATION",
+        "pm1": 20,
+        "pm25": 120,
+        "pm10": 180,
+        "temperature": 35,
+        "humidity": 70,
+        "hourOfDay": 9,
+        "dayOfWeek": 3,
+        "monthOfYear": 6,
+        "shift": "morning",
+        "co5": 999
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "drl": "rule \"TEST_PM25_SHIFT\" when $a : PollutionAggregate( periodType == \"shift\", shift == \"night\", pollutant == \"pm25\", avgValue != null, avgValue > 55.0, countUsed != null, countUsed >= 20 ) then Alert alert = new Alert(); alert.setType(\"NIGHT_PM25_HIGH\"); alert.setSeverity(\"HIGH\"); alert.setLocationId($a.getLocationId()); alert.setMessage(\"Night shift PM2.5 high\"); alert.setTs(new Date()); insert(alert); end",
+  "aggregates": [
+    {
+      "locationId": "room1",
+      "pollutant": "pm25",
+      "periodType": "shift",
+      "shift": "night",
+      "avgValue": 60,
+      "countUsed": 25
+    }
+  ]
+}

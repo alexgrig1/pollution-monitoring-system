@@ -15,4 +15,7 @@ ollama-data/
 
 *.log
 .DS_Store
-Thumbs.db
+Thumbs.dbnode_modules/ 
+app/data/ 
+grafana-data.tar.gz 
+runtime_empty_backup/ 

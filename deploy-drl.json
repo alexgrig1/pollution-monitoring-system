@@ -1,0 +1,4 @@
+﻿{
+  "content": "package com.myspace.pollution.pollution_rules;\n\nimport java.util.Date;\n\nrule \"Git test rule\"\nwhen\n    $r : SensorReading(pm25 != null, pm25 > 10)\nthen\n    Alert a = new Alert();\n    a.setType(\"GIT_TEST\");\n    a.setSeverity(\"LOW\");\n    a.setLocationId($r.getLocationId());\n    a.setMessage(\"Git deployed rule fired\");\n    a.setTs(new Date());\n    insert(a);\nend\n",
+  "message": "Deploy Git test DRL"
+}

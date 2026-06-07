@@ -4,31 +4,37 @@ services:
       context: ../app
     container_name: pollution-app
     ports:
-      - "3001:3000"
+      - "3000:3000"
     environment:
       - PORT=3000
-      - KIE_BASE_URL=http://jbpm:8080/kie-server/services/rest
-      - KIE_CONTAINER_ID=pollution-rules_1.0.0
-      - KIE_USER=kieserver
-      - KIE_PASS=kieserver1!
-      - KIE_GROUP_ID=com.myspace.pollution
-      - KIE_ARTIFACT_ID=pollution-rules
-      - KIE_VERSION=1.0.0
+      - BC_REPO_PATH=/workspace/pollution-rules
       - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_MODEL=qwen2.5-coder:3b
-    depends_on:
-      - jbpm
+      - OLLAMA_MODEL=qwen2.5-coder:1.5b
     volumes:
       - ../app/data:/usr/src/app/data
+      - ../pollution-rules:/workspace/pollution-rules
 
-  jbpm:
-    image: jboss/jbpm-server-full:latest
-    container_name: jbpm-server-full
+  governance-ui:
+    build:
+      context: ../governance-ui
+    container_name: pollution-governance-ui
     ports:
-      - "8080:8080"
-      - "8001:8001"
+      - "3001:5173"
+    depends_on:
+      - app
+
+  git-rule-runner:
+    build:
+      context: ../git-rule-runner
+    container_name: pollution-git-rule-runner
+    ports:
+      - "3020:3020"
+    environment:
+      - PORT=3020
+      - BC_REPO_PATH=/workspace/pollution-rules
     volumes:
-      - ../runtime/niogit:/opt/jboss/wildfly/bin/.niogit
+      - ../pollution-rules:/workspace/pollution-rules
+
   ollama:
     image: ollama/ollama:latest
     container_name: pollution-ollama
@@ -36,6 +42,8 @@ services:
       - "11434:11434"
     volumes:
       - ollama-data:/root/.ollama
+    gpus: all
+
   grafana:
     image: grafana/grafana:latest
     container_name: pollution-grafana
